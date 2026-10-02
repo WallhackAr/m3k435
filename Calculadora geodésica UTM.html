@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calculadora geodésica UTM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF0EB; --surface:#FBFCFA; --ink:#14222B; --muted:#56666D; --rule:#C9D2CC;
+  --accent:#0B6670; --accent-ink:#FFFFFF; --key:#F6E7A8; --grid:rgba(11,102,112,.09);
+  --err:#8F2A19; --errbg:#FBE7E2;
+  --display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;
+  --body:'Instrument Sans','Segoe UI',system-ui,-apple-system,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E181D; --surface:#15232A; --ink:#E5EEEC; --muted:#93A6AC; --rule:#2A3C44;
+    --accent:#5CC6CC; --accent-ink:#06262A; --key:#4B4213; --grid:rgba(92,198,204,.10);
+    --err:#FFB4A4; --errbg:#3A1B16;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E181D; --surface:#15232A; --ink:#E5EEEC; --muted:#93A6AC; --rule:#2A3C44;
+  --accent:#5CC6CC; --accent-ink:#06262A; --key:#4B4213; --grid:rgba(92,198,204,.10);
+  --err:#FFB4A4; --errbg:#3A1B16;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 var(--body);-webkit-text-size-adjust:100%}
+.hidden{display:none !important}
+.app{display:grid;grid-template-columns:270px minmax(0,1fr);min-height:100vh}
+aside{background:var(--surface);border-right:1px solid var(--rule);padding:28px 20px;position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto}
+.brand h1{font:700 1.55rem/1.1 var(--display);margin:0 0 6px;letter-spacing:-.01em}
+.brand p{margin:0 0 26px;color:var(--muted);font-size:.9rem}
+.ngroup{margin-bottom:18px;display:flex;flex-direction:column;gap:2px}
+.gname{font:600 .85rem var(--display);color:var(--muted);margin:0 0 4px 10px}
+.nav button{all:unset;box-sizing:border-box;cursor:pointer;padding:8px 10px;border-radius:6px;font-size:.95rem;line-height:1.3;border-left:3px solid transparent}
+.nav button:hover{background:var(--grid)}
+.nav button[aria-current="page"]{background:var(--grid);border-left-color:var(--accent);font-weight:600}
+.nav button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{min-width:0;padding:34px clamp(16px,4vw,48px) 60px;max-width:980px;width:100%}
+main>header h2{font:700 clamp(1.6rem,3.2vw,2.3rem)/1.1 var(--display);margin:0 0 8px;letter-spacing:-.015em}
+main>header p{margin:0 0 24px;color:var(--muted);max-width:68ch}
+.card{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:22px clamp(14px,3vw,26px);margin-bottom:22px}
+.card h2{font:700 1.2rem var(--display);margin:0 0 14px}
+.card .sub{margin:-6px 0 14px;color:var(--muted);font-size:.9rem}
+#fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:18px 22px}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld:has(.dms),.fld:has(.row2){grid-column:1/-1}
+.fld>label,.lbl{font-weight:600;font-size:.92rem}
+.fld small{color:var(--muted);font-size:.82rem}
+label span{display:block;font-weight:500;font-size:.8rem;color:var(--muted);margin-bottom:3px}
+.fld>label.chk{display:flex;gap:10px;align-items:center;font-weight:500}
+.chk input{width:18px;height:18px;accent-color:var(--accent)}
+input[type=text],select{width:100%;font:inherit;font-size:1rem;padding:9px 11px;border:1px solid var(--rule);border-radius:6px;background:var(--bg);color:var(--ink);min-height:42px}
+input[type=text]{font-variant-numeric:tabular-nums}
+.dms{display:grid;grid-template-columns:1fr 1fr 1.3fr 1.3fr;gap:10px;max-width:560px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:4px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:22px}
+.btn{font:600 1rem var(--body);padding:11px 20px;border-radius:7px;border:1.5px solid var(--accent);cursor:pointer;min-height:44px}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+#status{font-size:.9rem;color:var(--muted)}
+.err{margin-top:16px;padding:12px 14px;background:var(--errbg);color:var(--err);border-radius:7px;font-weight:500}
+.tablewrap{overflow-x:auto}
+table.sum{border-collapse:collapse;width:100%}
+.sum td,.sum th{padding:9px 12px;border-bottom:1px solid var(--rule);text-align:left}
+.sum td.val{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.sum td.unit{width:2.6rem;color:var(--muted)}
+.sum tr.key td{background:var(--key);font-weight:700}
+.sum tr.grp th{background:var(--accent);color:var(--accent-ink);font:600 .95rem var(--display);border:0}
+details{border-top:1px solid var(--rule);padding:10px 0}
+summary{cursor:pointer;font-weight:600;padding:4px 0}
+.eqs{margin-top:10px;padding:10px 14px;border:1px solid var(--rule);border-radius:6px;overflow-x:auto;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:20px 20px}
+.eq{margin:8px 0;min-width:min-content}
+.eq canvas{display:block;max-width:none}
+.note{margin:8px 0;color:var(--muted);font-style:italic;font-size:.9rem}
+@media (max-width:900px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  aside,main{min-width:0}
+  aside{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--rule);padding:18px 16px}
+  .brand p{margin-bottom:14px}
+  .nav{display:flex;gap:6px 14px;overflow-x:auto;padding-bottom:6px}
+  .ngroup{flex-direction:row;align-items:center;margin:0;gap:4px;flex:none}
+  .gname{margin:0 4px 0 0}
+  .nav button{white-space:nowrap;border:1px solid var(--rule);border-radius:999px;padding:7px 12px}
+  .nav button[aria-current="page"]{border-color:var(--accent)}
+}
+@media (max-width:520px){ .dms{grid-template-columns:1fr 1fr} }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div class="brand">
+      <h1>Geodesia UTM</h1>
+      <p>Cálculos con el procedimiento del curso, paso a paso.</p>
+    </div>
+    <nav class="nav" aria-label="Tipos de cálculo"></nav>
+  </aside>
+  <main>
+    <header>
+      <h2 id="modTitle"></h2>
+      <p id="modBlurb"></p>
+    </header>
+    <section class="card" aria-label="Datos de entrada">
+      <div id="fields"></div>
+      <div id="err" class="err hidden" role="alert"></div>
+      <div class="actions">
+        <button class="btn primary" id="calcBtn" type="button">Calcular</button>
+        <button class="btn ghost" id="pdfBtn" type="button" disabled>Descargar PDF</button>
+        <button class="btn ghost" id="resetBtn" type="button">Restablecer ejemplo</button>
+        <span id="status" role="status" aria-live="polite"></span>
+      </div>
+    </section>
+    <div id="result"></div>
+  </main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+'use strict';
+/* ============ Constantes y utilidades ============ */
+const K0 = 0.9996;
+const rad = d => d * Math.PI / 180;
+const tx = String.raw;
+
+const DATUMS = {
+  wgs84:  { name: 'WGS84',            a: 6378137.0, b: 6356752.314 },
+  psad56: { name: 'PSAD56 (Hayford)', a: 6378388.0, b: 6356911.946 }
+};
+
+function ellipsoid(a, b) {
+  return { a, b, e2: (a*a - b*b) / (a*a), ep2: (a*a - b*b) / (b*b), c: a*a / b };
+}
+
+function fmt(x, d) {
+  return x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+/* ---- formato para TeX ---- */
+function groupInt(s) { return s.length >= 5 ? s.replace(/\B(?=(\d{3})+(?!\d))/g, '\\,') : s; }
+function num(x, dec = 3) {
+  if (!isFinite(x)) return '\\text{NaN}';
+  const t = Math.abs(x).toFixed(dec);
+  const neg = x < 0 && Number(t) !== 0;
+  const [ip, fp] = t.split('.');
+  return (neg ? '-' : '') + groupInt(ip) + (fp ? '.' + fp : '');
+}
+function sci(x, sig = 6) {
+  if (x === 0) return '0';
+  const [m, e] = x.toExponential(sig - 1).split('e');
+  return m + '\\times10^{' + parseInt(e, 10) + '}';
+}
+function auto(x, dec = 9) {
+  const ax = Math.abs(x);
+  return (ax !== 0 && (ax < 1e-5 || ax >= 1e10)) ? sci(x) : num(x, dec);
+}
+const q = (x, dec = 9) => '(' + auto(x, dec) + ')';
+
+/* ============ Cálculos geodésicos ============ */
+function radii(ell, latDeg) {
+  const phi = rad(latDeg), s = Math.sin(phi);
+  const W = 1 - ell.e2 * s * s;
+  const rho = ell.a * (1 - ell.e2) / Math.pow(W, 1.5);
+  const N = ell.a / Math.sqrt(W);
+  return { phi, s, W, rho, N, r: Math.sqrt(rho * N) };
+}
+
+function utmCompute(ell, latDeg, lonDeg, zoneForced) {
+  const { a, e2, ep2 } = ell;
+  const phi = rad(latDeg);
+  const auto_zone = Math.trunc(lonDeg / 6 + 31);
+  const zone = zoneForced ? zoneForced : auto_zone;
+  const lam0 = zone * 6 - 183;
+  const dlamDeg = lonDeg - lam0;
+  const dlam = rad(dlamDeg);
+  const s = Math.sin(phi), c = Math.cos(phi), t = Math.tan(phi);
+  const n2 = ep2 * c * c;
+  const N = a / Math.sqrt(1 - e2 * s * s);
+  const x = dlam * c;
+  const T1 = x * N;
+  const T2 = Math.pow(x, 3) * N * (1 - t*t + n2) / 6;
+  const T3 = Math.pow(x, 5) * N * (5 - 18*t*t + Math.pow(t, 4)) / 120;
+  const Ep = T1 + T2 + T3;
+  const E = 500000 + K0 * Ep;
+  const A0 = 1 - e2/4 - 3/64*Math.pow(e2, 2) - 5/256*Math.pow(e2, 3);
+  const A2 = 3/8 * (e2 + Math.pow(e2, 2)/4 + 15/128*Math.pow(e2, 3));
+  const A4 = 15/256 * (Math.pow(e2, 2) + 3/4*Math.pow(e2, 3));
+  const A6 = 35/3072 * Math.pow(e2, 3);
+  const s2 = Math.sin(2*phi), s4 = Math.sin(4*phi), s6 = Math.sin(6*phi);
+  const AM = a * (A0*phi - A2*s2 + A4*s4 - A6*s6);
+  const U2 = x*x * N * t / 2;
+  const U4 = Math.pow(x, 4) * N * t * (5 - t*t + 9*n2 + 4*n2*n2) / 24;
+  const U6 = Math.pow(x, 6) * N * t * (61 - 58*t*t + Math.pow(t, 4)) / 720;
+  const Np = AM + U2 + U4 + U6;
+  const south = latDeg < 0;
+  const North = (south ? 1e7 : 0) + K0 * Np;
+  return { phi, lonDeg, zone, auto_zone, forced: !!zoneForced, lam0, dlamDeg, dlam, s, c, t, n2, N, x,
+    T1, T2, T3, Ep, E, A0, A2, A4, A6, s2, s4, s6, AM, U2, U4, U6, Np, north: North, south };
+}
+
+function scaleCompute(ell, latDeg, E) {
+  const phi = rad(latDeg), s = Math.sin(phi), c = Math.cos(phi);
+  const N = ell.a / Math.sqrt(1 - ell.e2 * s * s);
+  const X = Math.abs(500000 - E);
+  const qq = 1e-6 * X;
+  const D = 2 * N * N * K0 * K0;
+  const num1 = 1 + ell.ep2 * c * c;
+  const P = num1 / D * 1e12;
+  const t2 = P * qq * qq, t4 = 0.00003 * Math.pow(qq, 4);
+  const K = K0 * (1 + t2 + t4);
+  return { phi, c, N, X, q: qq, D, num1, P, t2, t4, K };
+}
+
+/* ============ Motor de fórmulas tipo LaTeX (canvas) ============ */
+const GREEK = { lambda:'λ', phi:'φ', varphi:'φ', rho:'ρ', Delta:'Δ', theta:'θ', sigma:'σ', pi:'π', alpha:'α', omega:'ω', mu:'μ', epsilon:'ε', delta:'δ', beta:'β', gamma:'γ' };
+const SYM = { cdot:'·', times:'×', pm:'±', circ:'°', approx:'≈', neq:'≠', leq:'≤', geq:'≥', to:'→', prime:'′', infty:'∞' };
+const FUNCS = ['sin', 'cos', 'tan', 'tg', 'ln', 'log', 'min', 'max'];
+const FONT_STACK = "'STIX Two Text','Cambria Math','Times New Roman',Georgia,serif";
+let _mctx = null;
+function mctx() {
+  if (!_mctx) _mctx = (typeof document !== 'undefined') ? document.createElement('canvas').getContext('2d') : globalThis.__mockctx;
+  return _mctx;
+}
+const fnt = (size, it) => (it ? 'italic ' : '') + size + 'px ' + FONT_STACK;
+function tw(s, size, it) { const c = mctx(); c.font = fnt(size, it); return c.measureText(s).width; }
+
+function parseTeX(src) {
+  let i = 0, rightDelim = null;
+  const isL = c => /[A-Za-z]/.test(c);
+  const skipWs = () => { while (i < src.length && src[i] === ' ') i++; };
+  function cmdName() {
+    let n = '';
+    if (i < src.length && isL(src[i])) { while (i < src.length && isL(src[i])) n += src[i++]; }
+    else if (i < src.length) n = src[i++];
+    return n;
+  }
+  function braceRaw() {
+    skipWs(); if (src[i] !== '{') return ''; i++;
+    let depth = 1, s = '';
+    while (i < src.length) { const c = src[i++]; if (c === '{') depth++; else if (c === '}') { depth--; if (!depth) break; } s += c; }
+    return s;
+  }
+  function parseArg() { skipWs(); return parseAtom() || { t: 'grp', c: [] }; }
+  function parseSeq(stop) {
+    const out = [];
+    while (i < src.length) {
+      const c = src[i];
+      if (c === ' ') { i++; continue; }
+      if (c === '}') { i++; if (stop === '}') return out; continue; }
+      if (c === '\\' && src.startsWith('\\right', i) && stop === 'right') {
+        i += 6; skipWs(); rightDelim = src[i++]; return out;
+      }
+      if (c === '^' || c === '_') {
+        i++; const arg = parseArg(); const base = out.pop(); let node;
+        if (base && base.t === 'scr' && ((c === '^' && !base.sup) || (c === '_' && !base.sub))) node = base;
+        else node = { t: 'scr', b: base || { t: 'grp', c: [] }, sup: null, sub: null };
+        if (c === '^') node.sup = arg; else node.sub = arg;
+        out.push(node); continue;
+      }
+      const a = parseAtom(); if (a) out.push(a);
+    }
+    return out;
+  }
+  function parseAtom() {
+    skipWs();
+    const c = src[i];
+    if (c === undefined) return null;
+    if (c === '{') { i++; return { t: 'grp', c: parseSeq('}') }; }
+    if (c === '\\') {
+      i++; const name = cmdName();
+      switch (name) {
+        case 'frac': { const n = parseArg(); const d = parseArg(); return { t: 'frac', n, d }; }
+        case 'sqrt': { const x = parseArg(); return { t: 'sqrt', c: x }; }
+        case 'left': {
+          skipWs(); const l = src[i++]; const saved = rightDelim;
+          const inner = parseSeq('right'); const r = rightDelim; rightDelim = saved;
+          return { t: 'del', l, r, c: inner };
+        }
+        case 'text': case 'mathrm': return { t: 'txt', s: braceRaw() };
+        case ',': return { t: 'sp', w: 0.17 };
+        case ';': return { t: 'sp', w: 0.28 };
+        case ' ': return { t: 'sp', w: 0.25 };
+        case 'quad': return { t: 'sp', w: 1 };
+        case 'qquad': return { t: 'sp', w: 2 };
+        default:
+          if (GREEK[name]) return { t: 'ch', s: GREEK[name], it: name !== 'Delta' };
+          if (SYM[name]) return { t: 'sym', s: SYM[name] };
+          if (FUNCS.includes(name)) return { t: 'fn', s: name };
+          return { t: 'txt', s: name };
+      }
+    }
+    if (/[0-9]/.test(c)) { let s = ''; while (i < src.length && /[0-9.]/.test(src[i])) s += src[i++]; return { t: 'num', s }; }
+    if ('+-=<>'.includes(c)) { i++; return { t: 'op', s: c }; }
+    if (/[A-Za-z]/.test(c)) { i++; return { t: 'ch', s: c, it: true }; }
+    i++; return { t: 'ch', s: c, it: false };
+  }
+  return parseSeq(null);
+}
+
+function textBox(s, size, it) {
+  const w = tw(s, size, it) + (it ? 0.6 : 0);
+  return { w, a: size * 0.72, d: size * 0.22, draw(ctx, x, y) { ctx.font = fnt(size, it); ctx.fillText(s, x, y); } };
+}
+
+function drawDelim(ctx, ch, x, top, bot, w, th) {
+  ctx.beginPath(); ctx.lineWidth = th; const mid = (top + bot) / 2;
+  if (ch === '(') { ctx.moveTo(x + w * 0.85, top); ctx.quadraticCurveTo(x - w * 0.15, mid, x + w * 0.85, bot); }
+  else if (ch === ')') { ctx.moveTo(x + w * 0.15, top); ctx.quadraticCurveTo(x + w * 1.15, mid, x + w * 0.15, bot); }
+  else if (ch === '|') { ctx.moveTo(x + w / 2, top); ctx.lineTo(x + w / 2, bot); }
+  else if (ch === '[') { ctx.moveTo(x + w * 0.8, top); ctx.lineTo(x + w * 0.2, top); ctx.lineTo(x + w * 0.2, bot); ctx.lineTo(x + w * 0.8, bot); }
+  else if (ch === ']') { ctx.moveTo(x + w * 0.2, top); ctx.lineTo(x + w * 0.8, top); ctx.lineTo(x + w * 0.8, bot); ctx.lineTo(x + w * 0.2, bot); }
+  ctx.stroke();
+}
+
+function layoutNode(n, size) {
+  switch (n.t) {
+    case 'grp': return seq(n.c, size);
+    case 'ch': return textBox(n.s, size, n.it);
+    case 'num': case 'txt': case 'fn': return textBox(n.s, size, false);
+    case 'sym': return textBox(n.s, size, false);
+    case 'op': return textBox(n.s === '-' ? '−' : n.s, size, false);
+    case 'sp': return { w: n.w * size, a: 0, d: 0, draw() {} };
+    case 'scr': {
+      const b = layoutNode(n.b, size);
+      const ss = Math.max(size * 0.7, 7);
+      const sup = n.sup ? layoutNode(n.sup, ss) : null;
+      const sub = n.sub ? layoutNode(n.sub, ss) : null;
+      const tall = b.a > size * 0.9;
+      let supUp = tall ? b.a - ss * 0.5 : size * 0.4;
+      const subDown = tall ? b.d * 0.5 + size * 0.15 : size * 0.2;
+      if (sup && sub) { const need = 0.12 * size - ((supUp - sup.d) - (-subDown + sub.a)); if (need > 0) supUp += need; }
+      const sw = Math.max(sup ? sup.w : 0, sub ? sub.w : 0);
+      return {
+        w: b.w + sw + 1,
+        a: Math.max(b.a, sup ? supUp + sup.a : 0),
+        d: Math.max(b.d, sub ? subDown + sub.d : 0),
+        draw(ctx, x, y) {
+          b.draw(ctx, x, y);
+          if (sup) sup.draw(ctx, x + b.w + 1, y - supUp);
+          if (sub) sub.draw(ctx, x + b.w + 1, y + subDown);
+        }
+      };
+    }
+    case 'frac': {
+      const fs = Math.max(size * 0.92, 9);
+      const nn = layoutNode(n.n, fs), dd = layoutNode(n.d, fs);
+      const w = Math.max(nn.w, dd.w) + size * 0.3;
+      const axis = size * 0.27, th = Math.max(1, size * 0.055), gap = size * 0.14;
+      const nY = -(axis + th / 2 + gap + nn.d);
+      const dY = -axis + th / 2 + gap + dd.a;
+      return {
+        w: w + size * 0.1, a: axis + th / 2 + gap + nn.d + nn.a, d: Math.max(0, dY + dd.d),
+        draw(ctx, x, y) {
+          const x0 = x + size * 0.05;
+          nn.draw(ctx, x0 + (w - nn.w) / 2, y + nY);
+          dd.draw(ctx, x0 + (w - dd.w) / 2, y + dY);
+          ctx.fillRect(x0, y - axis - th / 2, w, th);
+        }
+      };
+    }
+    case 'sqrt': {
+      const c = layoutNode(n.c, size);
+      const gap = size * 0.12, th = Math.max(1, size * 0.055), wr = size * 0.62;
+      return {
+        w: wr + c.w + size * 0.14, a: c.a + gap + th, d: c.d,
+        draw(ctx, x, y) {
+          const yt = y - c.a - gap, yb = y + c.d, h = yb - yt, ym = yb - h * 0.42;
+          ctx.beginPath(); ctx.lineWidth = th; ctx.lineJoin = 'miter';
+          ctx.moveTo(x, ym); ctx.lineTo(x + wr * 0.28, ym - h * 0.06);
+          ctx.lineTo(x + wr * 0.55, yb); ctx.lineTo(x + wr, yt);
+          ctx.lineTo(x + wr + c.w + size * 0.1, yt); ctx.stroke();
+          c.draw(ctx, x + wr + size * 0.04, y);
+        }
+      };
+    }
+    case 'del': {
+      const c = seq(n.c, size);
+      const hgt = c.a + c.d;
+      const th = Math.max(1, size * 0.07);
+      if (hgt <= size * 1.1) {
+        const l = n.l === '.' ? null : textBox(n.l, size, false);
+        const r = n.r === '.' || !n.r ? null : textBox(n.r, size, false);
+        const lw = l ? l.w : 0, rw = r ? r.w : 0;
+        return { w: lw + c.w + rw, a: c.a, d: c.d, draw(ctx, x, y) { if (l) l.draw(ctx, x, y); c.draw(ctx, x + lw, y); if (r) r.draw(ctx, x + lw + c.w, y); } };
+      }
+      const dw = size * 0.3, pad = size * 0.05;
+      const a = c.a + size * 0.08, d = c.d + size * 0.08;
+      return {
+        w: dw * 2 + c.w + pad * 2, a, d,
+        draw(ctx, x, y) {
+          if (n.l !== '.') drawDelim(ctx, n.l, x, y - a, y + d, dw, th);
+          c.draw(ctx, x + dw + pad, y);
+          if (n.r && n.r !== '.') drawDelim(ctx, n.r, x + dw + pad * 2 + c.w, y - a, y + d, dw, th);
+        }
+      };
+    }
+  }
+  return { w: 0, a: 0, d: 0, draw() {} };
+}
+
+function seq(nodes, size) {
+  const items = []; let x = 0, a = size * 0.72, d = size * 0.22, prevKind = null;
+  nodes.forEach(n => {
+    let pre = 0, post = 0, kind = 'other';
+    const isBin = (n.t === 'op' && (n.s === '+' || n.s === '-')) || (n.t === 'sym' && ['·', '×', '±'].includes(n.s));
+    const isRel = (n.t === 'op' && ['=', '<', '>'].includes(n.s)) || (n.t === 'sym' && ['≈', '≠', '≤', '≥', '→'].includes(n.s));
+    if (isRel) { pre = post = 0.28 * size; kind = 'rel'; }
+    else if (isBin) {
+      kind = 'bin';
+      const unary = n.t === 'op' && (prevKind === null || prevKind === 'bin' || prevKind === 'rel' || prevKind === 'open');
+      if (!unary) pre = post = 0.2 * size;
+    } else if (n.t === 'ch' && '(['.includes(n.s)) kind = 'open';
+    else if (n.t === 'sp') kind = prevKind;
+    if (n.t === 'fn' || (n.t === 'scr' && n.b.t === 'fn')) post = 0.12 * size;
+    x += pre;
+    const b = layoutNode(n, size);
+    items.push({ b, x });
+    x += b.w + post;
+    a = Math.max(a, b.a); d = Math.max(d, b.d);
+    prevKind = kind;
+  });
+  return { w: x, a, d, draw(ctx, x0, y) { items.forEach(it => it.b.draw(ctx, x0 + it.x, y)); } };
+}
+
+/* Devuelve {canvas, w, h} en píxeles CSS */
+function renderTeX(tex, opt = {}) {
+  const size = opt.size || 16, color = opt.color || '#000', scale = opt.scale || 3, pad = 3;
+  const root = seq(parseTeX(tex), size);
+  const w = Math.ceil(root.w + pad * 2), h = Math.ceil(root.a + root.d + pad * 2);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(w * scale); canvas.height = Math.ceil(h * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = color; ctx.strokeStyle = color; ctx.textBaseline = 'alphabetic';
+  root.draw(ctx, pad, pad + root.a);
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  return { canvas, w, h };
+}
+if (typeof globalThis !== 'undefined') globalThis.__renderTeXMeasure = tex => { const r = seq(parseTeX(tex), 16); return r; };
+
+'use strict';
+/* ============ Generadores de pasos (procedimiento detallado) ============ */
+function stepEllipsoid(ell) {
+  const { a, b, e2, ep2, c } = ell;
+  return { title: 'Parámetros del elipsoide ' + ell.name, lines: [
+    { note: 'Se toman el semieje mayor a y el semieje menor b, y se calculan las excentricidades y el radio polar de curvatura.' },
+    tx`a=${num(a, 3)}\,\text{m}\qquad b=${num(b, 3)}\,\text{m}`,
+    tx`e^{2}=\frac{a^{2}-b^{2}}{a^{2}}=\frac{(${num(a, 3)})^{2}-(${num(b, 3)})^{2}}{(${num(a, 3)})^{2}}=${num(e2, 9)}`,
+    tx`e^{\prime2}=\frac{a^{2}-b^{2}}{b^{2}}=\frac{(${num(a, 3)})^{2}-(${num(b, 3)})^{2}}{(${num(b, 3)})^{2}}=${num(ep2, 9)}`,
+    tx`c=\frac{a^{2}}{b}=\frac{(${num(a, 3)})^{2}}{${num(b, 3)}}=${num(c, 3)}\,\text{m}`
+  ] };
+}
+
+function stepRadii(ell, lat, title) {
+  const R = radii(ell, lat);
+  return { title: title || 'Radios de curvatura en la latitud dada', lines: [
+    { note: 'Radio de curvatura del meridiano (rho), gran normal (N) y radio medio de curvatura (r).' },
+    tx`\varphi=${num(lat, 9)}^{\circ}=${num(R.phi, 9)}\,\text{rad}`,
+    tx`\sin\varphi=${num(R.s, 9)}`,
+    tx`W=1-e^{2}\sin^{2}\varphi=1-${num(ell.e2, 9)}\,(${num(R.s, 9)})^{2}=${num(R.W, 9)}`,
+    tx`\rho=\frac{a\,(1-e^{2})}{\left(1-e^{2}\sin^{2}\varphi\right)^{3/2}}=\frac{${num(ell.a, 3)}\,(1-${num(ell.e2, 9)})}{(${num(R.W, 9)})^{3/2}}=${num(R.rho, 3)}\,\text{m}`,
+    tx`N=\frac{a}{\left(1-e^{2}\sin^{2}\varphi\right)^{1/2}}=\frac{${num(ell.a, 3)}}{(${num(R.W, 9)})^{1/2}}=${num(R.N, 3)}\,\text{m}`,
+    tx`r=\sqrt{\rho\cdot N}=\sqrt{(${num(R.rho, 3)})(${num(R.N, 3)})}=${num(R.r, 3)}\,\text{m}`
+  ] };
+}
+
+function stepsUTM(ell, lat, lon, u, tag) {
+  const T = tag ? tag + ' - ' : '';
+  const out = [];
+  const zl = u.forced
+    ? [{ note: 'La zona fue indicada manualmente: P = ' + u.zone + ' (la zona calculada para esta longitud sería ' + u.auto_zone + ').' }]
+    : [tx`P=\text{TRUNCAR}\left(\frac{\lambda}{6}+31\right)=\text{TRUNCAR}\left(\frac{${num(lon, 6)}}{6}+31\right)=\text{TRUNCAR}(${num(lon / 6 + 31, 6)})=${u.zone}`];
+  out.push({ title: T + 'Zona UTM, meridiano central y diferencia de longitud', lines: [
+    { note: 'La latitud y la longitud se llevan a grados decimales (sur y oeste negativos).' },
+    tx`\varphi=${num(lat, 9)}^{\circ}=${num(u.phi, 9)}\,\text{rad}\qquad\lambda=${num(lon, 9)}^{\circ}`,
+    ...zl,
+    tx`\lambda_{0}=P\cdot6-183^{\circ}=${u.zone}\cdot6-183=${u.lam0}^{\circ}`,
+    tx`\Delta\lambda=\lambda-\lambda_{0}=${q(lon, 6)}-${q(u.lam0, 0)}=${num(u.dlamDeg, 9)}^{\circ}=${num(u.dlam, 9)}\,\text{rad}`
+  ] });
+  out.push({ title: T + 'Cálculo del Este (E)', lines: [
+    { note: 'Se calculan t, n² y la gran normal N; luego la variable auxiliar x = Dl·cos(phi) y la serie E\'.' },
+    tx`t=\tan\varphi=${num(u.t, 9)}`,
+    tx`n^{2}=e^{\prime2}\cos^{2}\varphi=${num(ell.ep2, 9)}\,(${num(u.c, 9)})^{2}=${num(u.n2, 9)}`,
+    tx`N=\frac{a}{\sqrt{1-e^{2}\sin^{2}\varphi}}=\frac{${num(ell.a, 3)}}{\sqrt{1-${num(ell.e2, 9)}\,(${num(u.s, 9)})^{2}}}=${num(u.N, 3)}\,\text{m}`,
+    tx`x=\Delta\lambda\cdot\cos\varphi=${q(u.dlam)}\,(${num(u.c, 9)})=${num(u.x, 9)}`,
+    tx`T_{1}=x\,N=${q(u.x)}\,(${num(u.N, 3)})=${num(u.T1, 6)}`,
+    tx`T_{2}=\frac{x^{3}\,N\,(1-t^{2}+n^{2})}{6}=\frac{${q(u.x)}^{3}(${num(u.N, 3)})\,(1-${q(u.t)}^{2}+${num(u.n2, 9)})}{6}=${num(u.T2, 6)}`,
+    tx`T_{3}=\frac{x^{5}\,N\,(5-18t^{2}+t^{4})}{120}=\frac{${q(u.x)}^{5}(${num(u.N, 3)})\,(5-18${q(u.t)}^{2}+${q(u.t)}^{4})}{120}=${num(u.T3, 6)}`,
+    tx`E^{\prime}=T_{1}+T_{2}+T_{3}=${num(u.T1, 6)}+${q(u.T2, 6)}+${q(u.T3, 6)}=${num(u.Ep, 4)}\,\text{m}`,
+    tx`E=500\,000+0.9996\,E^{\prime}=500\,000+0.9996\,${q(u.Ep, 4)}=${num(u.E, 3)}\,\text{m}`
+  ] });
+  const e2 = ell.e2;
+  out.push({ title: T + 'Cálculo del Norte (N)', lines: [
+    { note: 'Coeficientes de la longitud de arco de meridiano (A0, A2, A4, A6) y arco AM desde el ecuador.' },
+    tx`A_{0}=1-\frac{e^{2}}{4}-\frac{3}{64}e^{4}-\frac{5}{256}e^{6}=${num(u.A0, 9)}`,
+    tx`A_{2}=\frac{3}{8}\left(e^{2}+\frac{1}{4}e^{4}+\frac{15}{128}e^{6}\right)=${num(u.A2, 9)}`,
+    tx`A_{4}=\frac{15}{256}\left(e^{4}+\frac{3}{4}e^{6}\right)=${auto(u.A4, 9)}`,
+    tx`A_{6}=\frac{35}{3072}\,e^{6}=${auto(u.A6, 9)}`,
+    tx`\sin2\varphi=${num(u.s2, 9)}\qquad\sin4\varphi=${num(u.s4, 9)}\qquad\sin6\varphi=${num(u.s6, 9)}`,
+    tx`AM=a\,(A_{0}\varphi-A_{2}\sin2\varphi+A_{4}\sin4\varphi-A_{6}\sin6\varphi)`,
+    tx`AM=${num(ell.a, 3)}\,[(${num(u.A0, 9)})${q(u.phi)}-(${num(u.A2, 9)})${q(u.s2)}+(${auto(u.A4)})${q(u.s4)}-(${auto(u.A6)})${q(u.s6)}]=${num(u.AM, 4)}\,\text{m}`,
+    tx`U_{2}=\frac{x^{2}\,N\,t}{2}=\frac{${q(u.x)}^{2}(${num(u.N, 3)})${q(u.t)}}{2}=${num(u.U2, 6)}`,
+    tx`U_{4}=\frac{x^{4}\,N\,t\,(5-t^{2}+9n^{2}+4n^{4})}{24}=${num(u.U4, 6)}`,
+    tx`U_{6}=\frac{x^{6}\,N\,t\,(61-58t^{2}+t^{4})}{720}=${num(u.U6, 6)}`,
+    tx`N^{\prime}=AM+U_{2}+U_{4}+U_{6}=${num(u.AM, 4)}+${q(u.U2, 6)}+${q(u.U4, 6)}+${q(u.U6, 6)}=${num(u.Np, 4)}\,\text{m}`,
+    u.south
+      ? tx`\text{Norte}=10\,000\,000+0.9996\,N^{\prime}=10\,000\,000+0.9996\,${q(u.Np, 4)}=${num(u.north, 3)}\,\text{m}`
+      : tx`\text{Norte}=0.9996\,N^{\prime}=0.9996\,${q(u.Np, 4)}=${num(u.north, 3)}\,\text{m}`
+  ] });
+  return out;
+}
+
+function stepScale(ell, lat, E, sc, title) {
+  return { title: title || 'Factor de escala del punto (UTM)', lines: [
+    { note: 'X es la distancia al meridiano central (Este menos 500 000 m, en valor absoluto); q = 0.000001·X.' },
+    tx`X=\left|500\,000-E\right|=\left|500\,000-${num(E, 3)}\right|=${num(sc.X, 3)}\,\text{m}`,
+    tx`q=0.000001\cdot X=${num(sc.q, 9)}`,
+    tx`N=\frac{a}{\sqrt{1-e^{2}\sin^{2}\varphi}}=${num(sc.N, 3)}\,\text{m}`,
+    tx`2N^{2}K_{0}^{2}=2\,(${num(sc.N, 3)})^{2}(0.9996)^{2}=${sci(sc.D, 7)}`,
+    tx`1+e^{\prime2}\cos^{2}\varphi=1+${num(ell.ep2, 9)}\,(${num(sc.c, 9)})^{2}=${num(sc.num1, 10)}`,
+    tx`P=\frac{1+e^{\prime2}\cos^{2}\varphi}{2N^{2}K_{0}^{2}}\cdot10^{12}=\frac{${num(sc.num1, 10)}}{${sci(sc.D, 7)}}\cdot10^{12}=${num(sc.P, 11)}`,
+    tx`P\,q^{2}=${num(sc.P, 11)}\,(${num(sc.q, 9)})^{2}=${num(sc.t2, 10)}\qquad0.00003\,q^{4}=${auto(sc.t4, 10)}`,
+    tx`K=K_{0}\left[1+P\,q^{2}+0.00003\,q^{4}\right]=0.9996\,\left[1+${num(sc.t2, 10)}+${auto(sc.t4, 10)}\right]=${num(sc.K, 10)}`
+  ] };
+}
+
+/* ============ Utilidades de módulos ============ */
+function ellFrom(v) { const d = v.datum; return Object.assign({ name: d.name }, ellipsoid(d.a, d.b)); }
+function checkLat(l) { if (l > 84 || l < -80) throw new Error('La latitud está fuera del rango de validez de la proyección UTM (84° N a 80° S).'); }
+function datumInputs(ell) { return [['Elipsoide / Datum', ell.name], ['Semieje mayor a', fmt(ell.a, 3) + ' m'], ['Semieje menor b', fmt(ell.b, 3) + ' m']]; }
+const hemi = lat => (lat < 0 ? 'S' : 'N');
+
+/* ============ Definición de módulos ============ */
+const DEF_LAT_A = { d: 13, m: 22, s: 23.37, h: 'S' };
+const DEF_LON_A = { d: 73, m: 56, s: 58.05, h: 'O' };
+const DEF_LAT_B = { d: 13, m: 22, s: 23.95, h: 'S' };
+const DEF_LON_B = { d: 73, m: 56, s: 42.11, h: 'O' };
+
+const MODS = [
+  /* ---------- 1. Elipsoide y radios ---------- */
+  { id: 'elip', group: 'Base', name: 'Elipsoide y radios de curvatura',
+    blurb: 'Excentricidades, radio polar y radios de curvatura (meridiano, gran normal y radio medio) para una latitud dada.',
+    fields: [
+      { id: 'datum', type: 'datum', label: 'Datum / elipsoide' },
+      { id: 'lat', type: 'dms', kind: 'lat', label: 'Latitud geodésica (φ)', def: DEF_LAT_A }
+    ],
+    run(v) {
+      const ell = ellFrom(v), lat = v.lat.dec;
+      if (Math.abs(lat) > 90) throw new Error('La latitud debe estar entre -90° y 90°.');
+      const R = radii(ell, lat);
+      return {
+        file: 'elipsoide_radios',
+        inputs: [...datumInputs(ell), ['Latitud', v.lat.txt]],
+        summary: [
+          { label: 'Primera excentricidad al cuadrado (e²)', value: fmt(ell.e2, 9) },
+          { label: "Segunda excentricidad al cuadrado (e'²)", value: fmt(ell.ep2, 9) },
+          { label: 'Radio polar de curvatura (c)', value: fmt(ell.c, 3), unit: 'm' },
+          { label: 'Radio de curvatura del meridiano', value: fmt(R.rho, 3), unit: 'm', key: true },
+          { label: 'Gran normal (N)', value: fmt(R.N, 3), unit: 'm', key: true },
+          { label: 'Radio medio de curvatura (r)', value: fmt(R.r, 3), unit: 'm', key: true }
+        ],
+        steps: [stepEllipsoid(ell), stepRadii(ell, lat)]
+      };
+    } },
+
+  /* ---------- 2. Geodésicas -> UTM ---------- */
+  { id: 'utm', group: 'Base', name: 'Coordenadas geodésicas a UTM',
+    blurb: 'Convierte latitud y longitud en Este y Norte UTM. Determina la zona y el meridiano central, y calcula el factor de escala del punto.',
+    fields: [
+      { id: 'datum', type: 'datum', label: 'Datum / elipsoide' },
+      { id: 'lat', type: 'dms', kind: 'lat', label: 'Latitud geodésica (φ)', def: DEF_LAT_A },
+      { id: 'lon', type: 'dms', kind: 'lon', label: 'Longitud geodésica (λ)', def: DEF_LON_A },
+      { id: 'zone', type: 'num', label: 'Zona UTM (opcional, para forzar una zona)', optional: true, hint: 'Déjalo vacío para calcularla automáticamente.' }
+    ],
+    run(v) {
+      const ell = ellFrom(v), lat = v.lat.dec, lon = v.lon.dec;
+      checkLat(lat);
+      const zf = v.zone ? Math.round(v.zone) : null;
+      if (zf && (zf < 1 || zf > 60)) throw new Error('La zona UTM debe estar entre 1 y 60.');
+      const u = utmCompute(ell, lat, lon, zf);
+      const sc = scaleCompute(ell, lat, u.E);
+      return {
+        file: 'geodesicas_a_utm',
+        inputs: [...datumInputs(ell), ['Latitud', v.lat.txt], ['Longitud', v.lon.txt], ['Zona', zf ? zf + ' (forzada)' : 'automática']],
+        summary: [
+          { label: 'Zona UTM', value: u.zone + ' ' + hemi(lat) },
+          { label: 'Meridiano central', value: fmt(u.lam0, 0) + '°' },
+          { label: 'Diferencia de longitud', value: fmt(u.dlamDeg, 6) + '°' },
+          { label: 'Este (E)', value: fmt(u.E, 3), unit: 'm', key: true },
+          { label: 'Norte (N)', value: fmt(u.north, 3), unit: 'm', key: true },
+          { label: 'Factor de escala del punto (K)', value: fmt(sc.K, 10), key: true }
+        ],
+        steps: [stepEllipsoid(ell), ...stepsUTM(ell, lat, lon, u), stepScale(ell, lat, u.E, sc, 'Factor de escala del punto (con el Este obtenido)')]
+      };
+    } },
+
+  /* ---------- 3. Factor de escala ---------- */
+  { id: 'kesc', group: 'Factores', name: 'Factor de escala de un punto',
+    blurb: 'K = K0·[1 + P·q² + 0.00003·q⁴]. Indica cuánto se deforma una longitud al proyectarla del elipsoide al plano UTM.',
+    fields: [
+      { id: 'datum', type: 'datum', label: 'Datum / elipsoide' },
+      { id: 'lat', type: 'dms', kind: 'lat', label: 'Latitud geodésica (φ)', def: DEF_LAT_A },
+      { id: 'modo', type: 'select', label: 'El segundo dato del punto es', options: [['este', 'Este UTM conocido'], ['lon', 'Longitud geodésica']], def: 'este' },
+      { id: 'este', type: 'num', label: 'Este UTM (E)', unit: 'm', def: '613755.292', showIf: v => v.modo === 'este' },
+      { id: 'lon', type: 'dms', kind: 'lon', label: 'Longitud geodésica (λ)', def: DEF_LON_A, showIf: v => v.modo === 'lon' }
+    ],
+    run(v) {
+      const ell = ellFrom(v), lat = v.lat.dec; checkLat(lat);
+      const steps = [stepEllipsoid(ell)];
+      let E, inp = [...datumInputs(ell), ['Latitud', v.lat.txt]];
+      if (v.modo === 'lon') {
+        const u = utmCompute(ell, lat, v.lon.dec); E = u.E;
+        inp.push(['Longitud', v.lon.txt]);
+        steps.push(...stepsUTM(ell, lat, v.lon.dec, u));
+      } else { E = v.este; inp.push(['Este UTM', fmt(E, 3) + ' m']); }
+      const sc = scaleCompute(ell, lat, E);
+      steps.push(stepScale(ell, lat, E, sc));
+      return {
+        file: 'factor_escala', inputs: inp,
+        summary: [
+          { label: 'Este usado (E)', value: fmt(E, 3), unit: 'm' },
+          { label: 'Gran normal (N)', value: fmt(sc.N, 3), unit: 'm' },
+          { label: 'Distancia al meridiano central (X)', value: fmt(sc.X, 3), unit: 'm' },
+          { label: 'Parámetro P', value: fmt(sc.P, 11) },
+          { label: 'Factor de escala (K)', value: fmt(sc.K, 10), key: true },
+          { label: 'Distorsión (K - 1)', value: fmt((sc.K - 1) * 1e6, 1), unit: 'ppm' }
+        ], steps
+      };
+    } },
+
+  /* ---------- 4. Factor de elevación ---------- */
+  { id: 'kelev', group: 'Factores', name: 'Factor de elevación',
+    blurb: 'K_elev = (R − M) / (R + h). Reduce una distancia topográfica (horizontal) al elipsoide de referencia usando la altura elipsoidal promedio.',
+    fields: [
+      { id: 'datum', type: 'datum', label: 'Datum / elipsoide' },
+      { id: 'latA', type: 'dms', kind: 'lat', label: 'Latitud del punto A', def: DEF_LAT_A },
+      { id: 'latB', type: 'dms', kind: 'lat', label: 'Latitud del punto B', def: DEF_LAT_B },
+      { id: 'hA', type: 'num', label: 'Altura elipsoidal de A (hA)', unit: 'm', def: '3820.242' },
+      { id: 'hB', type: 'num', label: 'Altura elipsoidal de B (hB)', unit: 'm', def: '3650.305' },
+      { id: 'LT', type: 'num', label: 'Distancia topográfica LT (opcional)', unit: 'm', optional: true, def: '480.233', hint: 'Si la ingresas, se calcula la distancia geodésica Lo = K_elev · LT.' },
+      { id: 'useM', type: 'check', label: 'Considerar la flecha central M = LT² / (8R)', def: false }
+    ],
+    run(v) {
+      const ell = ellFrom(v);
+      const rA = radii(ell, v.latA.dec), rB = radii(ell, v.latB.dec);
+      const R = (rA.rho + rB.rho) / 2, h = (v.hA + v.hB) / 2;
+      const LT = v.LT, useM = v.useM && LT;
+      const M = useM ? LT * LT / (8 * R) : 0;
+      const K = (R - M) / (R + h);
+      const lines = [
+        { note: 'Radio de curvatura del meridiano en cada punto (R se toma como el promedio de A y B).' },
+        tx`\rho_{A}=\frac{a\,(1-e^{2})}{\left(1-e^{2}\sin^{2}\varphi_{A}\right)^{3/2}}=\frac{${num(ell.a, 3)}\,(1-${num(ell.e2, 9)})}{(${num(rA.W, 9)})^{3/2}}=${num(rA.rho, 3)}\,\text{m}`,
+        tx`\rho_{B}=\frac{a\,(1-e^{2})}{\left(1-e^{2}\sin^{2}\varphi_{B}\right)^{3/2}}=\frac{${num(ell.a, 3)}\,(1-${num(ell.e2, 9)})}{(${num(rB.W, 9)})^{3/2}}=${num(rB.rho, 3)}\,\text{m}`,
+        tx`R=\frac{\rho_{A}+\rho_{B}}{2}=\frac{${num(rA.rho, 3)}+${num(rB.rho, 3)}}{2}=${num(R, 3)}\,\text{m}`,
+        tx`h=\frac{h_{A}+h_{B}}{2}=\frac{${num(v.hA, 3)}+${num(v.hB, 3)}}{2}=${num(h, 3)}\,\text{m}`
+      ];
+      if (useM) lines.push(tx`M=\frac{L_{T}^{2}}{8R}=\frac{(${num(LT, 3)})^{2}}{8\,(${num(R, 3)})}=${num(M, 9)}\,\text{m}`);
+      else lines.push({ note: 'La flecha central M se considera nula (es despreciable en líneas cortas).' }, tx`M=0`);
+      lines.push(tx`K_{elev}=\frac{R-M}{R+h}=\frac{${num(R, 3)}-${num(M, 6)}}{${num(R, 3)}+${num(h, 3)}}=${num(K, 10)}`);
+      const steps = [stepEllipsoid(ell), { title: 'Radio R, altura promedio h y factor de elevación', lines }];
+      const summary = [
+        { label: 'Radio meridiano en A', value: fmt(rA.rho, 3), unit: 'm' },
+        { label: 'Radio meridiano en B', value: fmt(rB.rho, 3), unit: 'm' },
+        { label: 'Radio promedio (R)', value: fmt(R, 3), unit: 'm' },
+        { label: 'Altura elipsoidal promedio (h)', value: fmt(h, 3), unit: 'm' },
+        { label: 'Flecha central (M)', value: fmt(M, 6), unit: 'm' },
+        { label: 'Factor de elevación (K_elev)', value: fmt(K, 10), key: true }
+      ];
+      if (LT) {
+        const Lo = K * LT;
+        steps.push({ title: 'Distancia geodésica a partir de la topográfica', lines: [
+          tx`L_{o}=K_{elev}\cdot L_{T}=${num(K, 10)}\cdot${num(LT, 3)}=${num(Lo, 3)}\,\text{m}`] });
+        summary.push({ label: 'Distancia topográfica (LT)', value: fmt(LT, 3), unit: 'm' }, { label: 'Distancia geodésica (Lo)', value: fmt(Lo, 3), unit: 'm', key: true });
+      }
+      return {
+        file: 'factor_elevacion',
+        inputs: [...datumInputs(ell), ['Latitud A', v.latA.txt], ['Latitud B', v.latB.txt], ['hA', fmt(v.hA, 3) + ' m'], ['hB', fmt(v.hB, 3) + ' m'], ['LT', LT ? fmt(LT, 3) + ' m' : '-']],
+        summary, steps
+      };
+    } },
+
+  /* ---------- 5. Factor combinado ---------- */
+  { id: 'kcomb', group: 'Factores', name: 'Factor combinado',
+    blurb: 'K = K_elevación · K_escala. Convierte directamente una distancia topográfica en distancia de cuadrícula (Lc = K · LT) y viceversa.',
+    fields: [
+      { id: 'kesc', type: 'num', label: 'Factor de escala (K_escala)', def: '0.9997607494' },
+      { id: 'kel', type: 'num', label: 'Factor de elevación (K_elevación)', def: '0.9994110797' },
+      { id: 'dir', type: 'select', label: 'Conversión', options: [['t2c', 'Topográfica → cuadrícula'], ['c2t', 'Cuadrícula → topográfica']], def: 't2c' },
+      { id: 'L', type: 'num', label: 'Distancia a convertir', unit: 'm', def: '480.233' }
+    ],
+    run(v) {
+      const K = v.kesc * v.kel;
+      const t2c = v.dir === 't2c';
+      const res = t2c ? K * v.L : v.L / K;
+      const steps = [{ title: 'Factor combinado', lines: [
+        tx`K=K_{elev}\cdot K_{escala}=${num(v.kel, 10)}\cdot${num(v.kesc, 10)}=${num(K, 10)}`] },
+      { title: t2c ? 'Distancia de cuadrícula' : 'Distancia topográfica', lines: [
+        t2c ? tx`L_{C}=K\cdot L_{T}=${num(K, 10)}\cdot${num(v.L, 3)}=${num(res, 3)}\,\text{m}`
+            : tx`L_{T}=\frac{L_{C}}{K}=\frac{${num(v.L, 3)}}{${num(K, 10)}}=${num(res, 3)}\,\text{m}`] }];
+      return {
+        file: 'factor_combinado',
+        inputs: [['K escala', fmt(v.kesc, 10)], ['K elevación', fmt(v.kel, 10)], ['Conversión', t2c ? 'Topográfica a cuadrícula' : 'Cuadrícula a topográfica'], [t2c ? 'LT' : 'LC', fmt(v.L, 3) + ' m']],
+        summary: [
+          { label: 'Factor combinado (K)', value: fmt(K, 10), key: true },
+          { label: t2c ? 'Distancia de cuadrícula (LC)' : 'Distancia topográfica (LT)', value: fmt(res, 3), unit: 'm', key: true }
+        ], steps
+      };
+    } },
+
+  /* ---------- 6. Distancia de cuadrícula ---------- */
+  { id: 'grid', group: 'Distancias', name: 'Distancia de cuadrícula',
+    blurb: 'Longitud de la recta entre dos puntos en el plano UTM, a partir de sus coordenadas Este y Norte.',
+    fields: [
+      { id: 'EA', type: 'num', label: 'Este de A', unit: 'm', def: '613755.292' },
+      { id: 'NA', type: 'num', label: 'Norte de A', unit: 'm', def: '8521356.277' },
+      { id: 'EB', type: 'num', label: 'Este de B', unit: 'm', def: '614234.716' },
+      { id: 'NB', type: 'num', label: 'Norte de B', unit: 'm', def: '8521336.420' }
+    ],
+    run(v) {
+      const dE = v.EB - v.EA, dN = v.NB - v.NA, Lc = Math.hypot(dE, dN);
+      return {
+        file: 'distancia_cuadricula',
+        inputs: [['Este A', fmt(v.EA, 3) + ' m'], ['Norte A', fmt(v.NA, 3) + ' m'], ['Este B', fmt(v.EB, 3) + ' m'], ['Norte B', fmt(v.NB, 3) + ' m']],
+        summary: [
+          { label: 'Diferencia de Este', value: fmt(dE, 3), unit: 'm' },
+          { label: 'Diferencia de Norte', value: fmt(dN, 3), unit: 'm' },
+          { label: 'Distancia de cuadrícula (LC)', value: fmt(Lc, 3), unit: 'm', key: true }
+        ],
+        steps: [{ title: 'Distancia en el plano cartesiano E - N', lines: [
+          tx`\Delta E=E_{B}-E_{A}=${num(v.EB, 3)}-${num(v.EA, 3)}=${num(dE, 3)}\,\text{m}`,
+          tx`\Delta N=N_{B}-N_{A}=${num(v.NB, 3)}-${num(v.NA, 3)}=${num(dN, 3)}\,\text{m}`,
+          tx`L_{C}=\sqrt{(E_{B}-E_{A})^{2}+(N_{B}-N_{A})^{2}}=\sqrt{(${num(dE, 3)})^{2}+(${num(dN, 3)})^{2}}=${num(Lc, 3)}\,\text{m}`] }]
+      };
+    } },
+
+  /* ---------- 7. Distancia geodésica ---------- */
+  { id: 'geod', group: 'Distancias', name: 'Distancia geodésica',
+    blurb: 'Lo = Lc / K_escala, con el factor de escala promedio de los extremos de la línea.',
+    fields: [
+      { id: 'Lc', type: 'num', label: 'Distancia de cuadrícula (LC)', unit: 'm', def: '479.835' },
+      { id: 'KA', type: 'num', label: 'Factor de escala del punto A (KA)', def: '0.9997600733' },
+      { id: 'KB', type: 'num', label: 'Factor de escala del punto B (KB)', def: '0.9997614254' }
+    ],
+    run(v) {
+      const K = (v.KA + v.KB) / 2, Lo = v.Lc / K;
+      return {
+        file: 'distancia_geodesica',
+        inputs: [['LC', fmt(v.Lc, 3) + ' m'], ['KA', fmt(v.KA, 10)], ['KB', fmt(v.KB, 10)]],
+        summary: [
+          { label: 'Factor de escala promedio (K_escala)', value: fmt(K, 10) },
+          { label: 'Distancia geodésica (Lo)', value: fmt(Lo, 3), unit: 'm', key: true }
+        ],
+        steps: [{ title: 'Factor de escala promedio y distancia geodésica', lines: [
+          tx`K_{escala}=\frac{K_{A}+K_{B}}{2}=\frac{${num(v.KA, 10)}+${num(v.KB, 10)}}{2}=${num(K, 10)}`,
+          tx`L_{o}=\frac{L_{C}}{K_{escala}}=\frac{${num(v.Lc, 3)}}{${num(K, 10)}}=${num(Lo, 3)}\,\text{m}`] }]
+      };
+    } },
+
+  /* ---------- 8. Integral entre dos puntos ---------- */
+  { id: 'full', group: 'Distancias', name: 'Cálculo completo entre dos puntos',
+    blurb: 'Desde las coordenadas geodésicas y alturas elipsoidales de A y B: coordenadas UTM, factores de escala, elevación y combinado, y las distancias geodésica, de cuadrícula y topográfica.',
+    fields: [
+      { id: 'datum', type: 'datum', label: 'Datum / elipsoide' },
+      { id: 'latA', type: 'dms', kind: 'lat', label: 'Punto A: latitud', def: DEF_LAT_A },
+      { id: 'lonA', type: 'dms', kind: 'lon', label: 'Punto A: longitud', def: DEF_LON_A },
+      { id: 'hA', type: 'num', label: 'Punto A: altura elipsoidal', unit: 'm', def: '3820.242' },
+      { id: 'latB', type: 'dms', kind: 'lat', label: 'Punto B: latitud', def: DEF_LAT_B },
+      { id: 'lonB', type: 'dms', kind: 'lon', label: 'Punto B: longitud', def: DEF_LON_B },
+      { id: 'hB', type: 'num', label: 'Punto B: altura elipsoidal', unit: 'm', def: '3650.305' },
+      { id: 'zone', type: 'num', label: 'Zona UTM (opcional)', optional: true, hint: 'Vacío: se usa la zona del punto A para ambos puntos.' },
+      { id: 'LT', type: 'num', label: 'Distancia topográfica medida (opcional)', unit: 'm', optional: true, hint: 'Si la ingresas, se reduce a distancia de cuadrícula y geodésica.' }
+    ],
+    run(v) {
+      const ell = ellFrom(v);
+      checkLat(v.latA.dec); checkLat(v.latB.dec);
+      const zf = v.zone ? Math.round(v.zone) : null;
+      const zA = zf || Math.trunc(v.lonA.dec / 6 + 31);
+      const zB = Math.trunc(v.lonB.dec / 6 + 31);
+      const uA = utmCompute(ell, v.latA.dec, v.lonA.dec, zA), uB = utmCompute(ell, v.latB.dec, v.lonB.dec, zA);
+      uA.forced = !!zf; uB.forced = true; uB.auto_zone = zB;
+      const sA = scaleCompute(ell, v.latA.dec, uA.E), sB = scaleCompute(ell, v.latB.dec, uB.E);
+      const rA = radii(ell, v.latA.dec), rB = radii(ell, v.latB.dec);
+      const keA = rA.rho / (rA.rho + v.hA), keB = rB.rho / (rB.rho + v.hB);
+      const dE = uB.E - uA.E, dN = uB.north - uA.north, Lc = Math.hypot(dE, dN);
+      const Ke = (sA.K + sB.K) / 2, Lo = Lc / Ke;
+      const R = (rA.rho + rB.rho) / 2, h = (v.hA + v.hB) / 2;
+      const Kel = R / (R + h), K = Kel * Ke, LTc = Lc / K;
+
+      const steps = [stepEllipsoid(ell)];
+      if (zB !== zA) steps.push({ title: 'Advertencia de zona', lines: [{ note: 'Los puntos pertenecen a zonas distintas (A: ' + zA + ', B: ' + zB + '). Se usó la zona ' + zA + ' para ambos, de modo que sus coordenadas sean comparables.' }] });
+      steps.push(...stepsUTM(ell, v.latA.dec, v.lonA.dec, uA, 'Punto A'), stepScale(ell, v.latA.dec, uA.E, sA, 'Punto A - Factor de escala'));
+      steps.push(...stepsUTM(ell, v.latB.dec, v.lonB.dec, uB, 'Punto B'), stepScale(ell, v.latB.dec, uB.E, sB, 'Punto B - Factor de escala'));
+      steps.push({ title: 'Factores de elevación y combinado de cada punto', lines: [
+        { note: 'Para cada punto: K_elev = rho / (rho + h) y K = K_elev · K_escala.' },
+        tx`\rho_{A}=${num(rA.rho, 3)}\,\text{m}\qquad K_{elev,A}=\frac{${num(rA.rho, 3)}}{${num(rA.rho, 3)}+${num(v.hA, 3)}}=${num(keA, 10)}`,
+        tx`K_{A}=${num(keA, 10)}\cdot${num(sA.K, 10)}=${num(keA * sA.K, 10)}`,
+        tx`\rho_{B}=${num(rB.rho, 3)}\,\text{m}\qquad K_{elev,B}=\frac{${num(rB.rho, 3)}}{${num(rB.rho, 3)}+${num(v.hB, 3)}}=${num(keB, 10)}`,
+        tx`K_{B}=${num(keB, 10)}\cdot${num(sB.K, 10)}=${num(keB * sB.K, 10)}`] });
+      steps.push({ title: 'Distancia de cuadrícula', lines: [
+        tx`\Delta E=${num(uB.E, 3)}-${num(uA.E, 3)}=${num(dE, 3)}\,\text{m}\qquad\Delta N=${num(uB.north, 3)}-${num(uA.north, 3)}=${num(dN, 3)}\,\text{m}`,
+        tx`L_{C}=\sqrt{(\Delta E)^{2}+(\Delta N)^{2}}=\sqrt{(${num(dE, 3)})^{2}+(${num(dN, 3)})^{2}}=${num(Lc, 3)}\,\text{m}`] });
+      steps.push({ title: 'Distancia geodésica', lines: [
+        tx`K_{escala}=\frac{K_{A}+K_{B}}{2}=\frac{${num(sA.K, 10)}+${num(sB.K, 10)}}{2}=${num(Ke, 10)}`,
+        tx`L_{o}=\frac{L_{C}}{K_{escala}}=\frac{${num(Lc, 3)}}{${num(Ke, 10)}}=${num(Lo, 3)}\,\text{m}`] });
+      steps.push({ title: 'Factor de elevación de la línea, factor combinado y distancia topográfica', lines: [
+        { note: 'R es el promedio de los radios de meridiano y h el promedio de las alturas elipsoidales. Se considera M = 0.' },
+        tx`R=\frac{${num(rA.rho, 3)}+${num(rB.rho, 3)}}{2}=${num(R, 3)}\,\text{m}\qquad h=\frac{${num(v.hA, 3)}+${num(v.hB, 3)}}{2}=${num(h, 3)}\,\text{m}`,
+        tx`K_{elev}=\frac{R}{R+h}=\frac{${num(R, 3)}}{${num(R, 3)}+${num(h, 3)}}=${num(Kel, 10)}`,
+        tx`K=K_{elev}\cdot K_{escala}=${num(Kel, 10)}\cdot${num(Ke, 10)}=${num(K, 10)}`,
+        tx`L_{T}=\frac{L_{C}}{K}=\frac{${num(Lc, 3)}}{${num(K, 10)}}=${num(LTc, 3)}\,\text{m}`] });
+
+      const summary = [
+        { group: 'Punto A' },
+        { label: 'Zona UTM', value: zA + ' ' + hemi(v.latA.dec) },
+        { label: 'Este', value: fmt(uA.E, 3), unit: 'm' }, { label: 'Norte', value: fmt(uA.north, 3), unit: 'm' },
+        { label: 'K escala', value: fmt(sA.K, 10) }, { label: 'K elevación', value: fmt(keA, 10) }, { label: 'K combinado', value: fmt(keA * sA.K, 10) },
+        { group: 'Punto B' },
+        { label: 'Zona UTM', value: zA + ' ' + hemi(v.latB.dec) },
+        { label: 'Este', value: fmt(uB.E, 3), unit: 'm' }, { label: 'Norte', value: fmt(uB.north, 3), unit: 'm' },
+        { label: 'K escala', value: fmt(sB.K, 10) }, { label: 'K elevación', value: fmt(keB, 10) }, { label: 'K combinado', value: fmt(keB * sB.K, 10) },
+        { group: 'Línea A - B' },
+        { label: 'Distancia geodésica (Lo)', value: fmt(Lo, 3), unit: 'm', key: true },
+        { label: 'Distancia de cuadrícula (LC)', value: fmt(Lc, 3), unit: 'm', key: true },
+        { label: 'Distancia topográfica (LT)', value: fmt(LTc, 3), unit: 'm', key: true },
+        { label: 'K escala promedio', value: fmt(Ke, 10) }, { label: 'K elevación de la línea', value: fmt(Kel, 10) }, { label: 'K combinado', value: fmt(K, 10) }
+      ];
+      if (v.LT) {
+        const Lc2 = K * v.LT, Lo2 = Kel * v.LT;
+        steps.push({ title: 'Reducción de la distancia topográfica medida', lines: [
+          tx`L_{C}=K\cdot L_{T}=${num(K, 10)}\cdot${num(v.LT, 3)}=${num(Lc2, 3)}\,\text{m}`,
+          tx`L_{o}=K_{elev}\cdot L_{T}=${num(Kel, 10)}\cdot${num(v.LT, 3)}=${num(Lo2, 3)}\,\text{m}`] });
+        summary.push({ group: 'Reducción de la distancia medida' },
+          { label: 'Distancia topográfica medida', value: fmt(v.LT, 3), unit: 'm' },
+          { label: 'Distancia de cuadrícula (K · LT)', value: fmt(Lc2, 3), unit: 'm', key: true },
+          { label: 'Distancia geodésica (K_elev · LT)', value: fmt(Lo2, 3), unit: 'm', key: true });
+      }
+      return {
+        file: 'calculo_entre_dos_puntos',
+        inputs: [...datumInputs(ell), ['A: latitud', v.latA.txt], ['A: longitud', v.lonA.txt], ['A: altura', fmt(v.hA, 3) + ' m'],
+          ['B: latitud', v.latB.txt], ['B: longitud', v.lonB.txt], ['B: altura', fmt(v.hB, 3) + ' m'], ['Zona', zf ? zf + ' (forzada)' : 'automática (' + zA + ')'], ['LT medida', v.LT ? fmt(v.LT, 3) + ' m' : '-']],
+        summary, steps
+      };
+    } }
+];
+if (typeof module !== 'undefined') module.exports = { MODS, utmCompute, scaleCompute, radii, ellipsoid, DATUMS, renderTeX };
+
+/* ============ Interfaz ============ */
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (attrs || {})) {
+    if (k === 'class') e.className = attrs[k];
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else if (attrs[k] !== false && attrs[k] != null) e.setAttribute(k, attrs[k]);
+  }
+  kids.flat().forEach(c => { if (c == null) return; e.append(c.nodeType ? c : document.createTextNode(c)); });
+  return e;
+}
+
+let state = { mod: MODS[0], res: null };
+const fieldReaders = {};
+
+function dmsText(d, m, s, hem, kind) {
+  return d + '° ' + m + "' " + (Math.round(s * 1000) / 1000) + '" ' + hem;
+}
+
+function buildField(f) {
+  const wrap = h('div', { class: 'fld', 'data-id': f.id });
+  if (f.type === 'datum') {
+    const sel = h('select', { id: 'f_' + f.id + '_sel' },
+      h('option', { value: 'wgs84' }, 'WGS84'), h('option', { value: 'psad56' }, 'PSAD56 (elipsoide Hayford)'), h('option', { value: 'custom' }, 'Personalizado'));
+    const a = h('input', { type: 'text', inputmode: 'decimal', id: 'f_' + f.id + '_a', value: '6378137.000' });
+    const b = h('input', { type: 'text', inputmode: 'decimal', id: 'f_' + f.id + '_b', value: '6356752.314' });
+    const cust = h('div', { class: 'row2 hidden' }, h('label', {}, h('span', {}, 'Semieje mayor a (m)'), a), h('label', {}, h('span', {}, 'Semieje menor b (m)'), b));
+    sel.addEventListener('change', () => {
+      if (sel.value === 'custom') { cust.classList.remove('hidden'); }
+      else { cust.classList.add('hidden'); a.value = DATUMS[sel.value].a.toFixed(3); b.value = DATUMS[sel.value].b.toFixed(3); }
+    });
+    wrap.append(h('label', { for: 'f_' + f.id + '_sel' }, f.label), sel, cust);
+    fieldReaders[f.id] = () => {
+      if (sel.value !== 'custom') return Object.assign({}, DATUMS[sel.value]);
+      const A = parseFloat(a.value.replace(',', '.')), B = parseFloat(b.value.replace(',', '.'));
+      if (!(A > 0) || !(B > 0) || B > A) throw new Error('Datum personalizado: ingresa a y b válidos (a ≥ b > 0).');
+      return { name: 'Personalizado', a: A, b: B };
+    };
+  } else if (f.type === 'dms') {
+    const def = f.def;
+    const inD = h('input', { type: 'text', inputmode: 'decimal', value: def.d, 'aria-label': f.label + ' grados' });
+    const inM = h('input', { type: 'text', inputmode: 'decimal', value: def.m, 'aria-label': f.label + ' minutos' });
+    const inS = h('input', { type: 'text', inputmode: 'decimal', value: def.s, 'aria-label': f.label + ' segundos' });
+    const opts = f.kind === 'lat' ? [['N', 'Norte'], ['S', 'Sur']] : [['E', 'Este'], ['O', 'Oeste']];
+    const hs = h('select', { 'aria-label': f.label + ' hemisferio' }, opts.map(o => h('option', { value: o[0] }, o[1])));
+    hs.value = def.h;
+    wrap.append(h('span', { class: 'lbl' }, f.label),
+      h('div', { class: 'dms' },
+        h('label', {}, h('span', {}, 'Grados'), inD), h('label', {}, h('span', {}, 'Minutos'), inM),
+        h('label', {}, h('span', {}, 'Segundos'), inS), h('label', {}, h('span', {}, 'Hemisferio'), hs)));
+    fieldReaders[f.id] = () => {
+      const D = parseFloat(inD.value.replace(',', '.')), M = parseFloat(inM.value.replace(',', '.') || '0'), S = parseFloat(inS.value.replace(',', '.') || '0');
+      if (![D, M, S].every(isFinite)) throw new Error('Completa grados, minutos y segundos de "' + f.label + '".');
+      if (M < 0 || M >= 60 || S < 0 || S >= 60) throw new Error('Minutos y segundos de "' + f.label + '" deben estar entre 0 y 60.');
+      const sign = (hs.value === 'S' || hs.value === 'O') ? -1 : 1;
+      const dec = sign * (Math.abs(D) + M / 60 + S / 3600);
+      if (f.kind === 'lon' && Math.abs(dec) > 180) throw new Error('La longitud debe estar entre -180° y 180°.');
+      return { dec, txt: dmsText(Math.abs(D), M, S, hs.value, f.kind) };
+    };
+  } else if (f.type === 'num') {
+    const inp = h('input', { type: 'text', inputmode: 'decimal', id: 'f_' + f.id, value: f.def != null ? f.def : '' });
+    wrap.append(h('label', { for: 'f_' + f.id }, f.label + (f.unit ? ' (' + f.unit + ')' : '')), inp);
+    if (f.hint) wrap.append(h('small', {}, f.hint));
+    fieldReaders[f.id] = () => {
+      const raw = inp.value.trim().replace(',', '.');
+      if (raw === '') { if (f.optional) return null; throw new Error('Completa el campo "' + f.label + '".'); }
+      const n = Number(raw);
+      if (!isFinite(n)) throw new Error('El valor de "' + f.label + '" no es un número.');
+      return n;
+    };
+  } else if (f.type === 'select') {
+    const sel = h('select', { id: 'f_' + f.id }, f.options.map(o => h('option', { value: o[0] }, o[1])));
+    sel.value = f.def;
+    sel.addEventListener('change', updateVisibility);
+    wrap.append(h('label', { for: 'f_' + f.id }, f.label), sel);
+    fieldReaders[f.id] = () => sel.value;
+  } else if (f.type === 'check') {
+    const cb = h('input', { type: 'checkbox', id: 'f_' + f.id }); cb.checked = !!f.def;
+    wrap.append(h('label', { class: 'chk', for: 'f_' + f.id }, cb, h('span', {}, f.label)));
+    fieldReaders[f.id] = () => cb.checked;
+  }
+  return wrap;
+}
+
+function updateVisibility() {
+  const cur = {};
+  state.mod.fields.forEach(f => { if (f.type === 'select') cur[f.id] = fieldReaders[f.id](); });
+  state.mod.fields.forEach(f => {
+    const node = $('.fld[data-id="' + f.id + '"]');
+    if (node && f.showIf) node.classList.toggle('hidden', !f.showIf(cur));
+  });
+}
+
+function readValues() {
+  const v = {};
+  state.mod.fields.forEach(f => {
+    const node = $('.fld[data-id="' + f.id + '"]');
+    if (node && node.classList.contains('hidden')) { v[f.id] = null; return; }
+    v[f.id] = fieldReaders[f.id]();
+  });
+  state.mod.fields.forEach(f => { if (f.type === 'select') v[f.id] = fieldReaders[f.id](); });
+  return v;
+}
+
+function renderForm() {
+  const m = state.mod;
+  Object.keys(fieldReaders).forEach(k => delete fieldReaders[k]);
+  $('#modTitle').textContent = m.name;
+  $('#modBlurb').textContent = m.blurb;
+  const form = $('#fields'); form.innerHTML = '';
+  m.fields.forEach(f => form.append(buildField(f)));
+  updateVisibility();
+  document.title = m.name + ' · Calculadora geodésica UTM';
+}
+
+function showError(msg) {
+  const e = $('#err'); e.textContent = msg; e.classList.toggle('hidden', !msg);
+}
+
+function calculate() {
+  showError('');
+  try {
+    const v = readValues();
+    state.res = state.mod.run(v);
+    $('#pdfBtn').disabled = false;
+    renderResult();
+  } catch (err) {
+    state.res = null; $('#pdfBtn').disabled = true; $('#result').innerHTML = '';
+    showError(err.message || String(err));
+  }
+}
+
+function inkColor() { return getComputedStyle(document.body).color; }
+
+function renderResult() {
+  const box = $('#result'); box.innerHTML = '';
+  const res = state.res; if (!res) return;
+  // Resumen
+  const rows = res.summary.map(r => r.group
+    ? h('tr', { class: 'grp' }, h('th', { colspan: 3 }, r.group))
+    : h('tr', { class: r.key ? 'key' : '' }, h('td', {}, r.label), h('td', { class: 'val' }, r.value), h('td', { class: 'unit' }, r.unit || '')));
+  box.append(h('section', { class: 'card' }, h('h2', {}, 'Resumen de resultados'),
+    h('div', { class: 'tablewrap' }, h('table', { class: 'sum' }, h('tbody', {}, rows)))));
+  // Procedimiento
+  const color = inkColor();
+  const sec = h('section', { class: 'card' }, h('h2', {}, 'Procedimiento detallado'),
+    h('p', { class: 'sub' }, 'Cada paso muestra la fórmula, el reemplazo de valores y el resultado.'));
+  res.steps.forEach((s, i) => {
+    const eqs = h('div', { class: 'eqs' });
+    s.lines.forEach(l => {
+      if (typeof l === 'string') {
+        const r = renderTeX(l, { size: 16, color, scale: 3 });
+        eqs.append(h('div', { class: 'eq' }, r.canvas));
+      } else eqs.append(h('p', { class: 'note' }, l.note));
+    });
+    sec.append(h('details', { open: i < 2 || res.steps.length <= 4 }, h('summary', {}, s.title), eqs));
+  });
+  box.append(sec);
+}
+
+/* ============ PDF ============ */
+function sanitize(s) { return String(s).replace(/[′]/g, "'").replace(/[″]/g, '"').replace(/[Δφλρ]/g, ''); }
+
+async function buildPDF(mod, res) {
+  if (!window.jspdf) throw new Error('No se pudo cargar la librería de PDF. Revisa tu conexión.');
+  const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4' });
+  const PW = 210, PH = 297, M = 16, CW = PW - 2 * M;
+  const ACC = [11, 102, 112], INK = [21, 34, 43], KEY = [250, 240, 200], ZEB = [242, 245, 243], RULE = [200, 210, 205];
+  let y = M;
+  const ensure = hh => { if (y + hh > PH - M - 4) { doc.addPage(); y = M; } };
+  const now = new Date();
+  const fecha = now.toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+
+  doc.setFillColor(...ACC); doc.rect(0, 0, PW, 26, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
+  doc.text(sanitize(mod.name), M, 12.5);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+  doc.text('Geodesia satelital - Reporte de calculo   |   ' + fecha, M, 19.5);
+  y = 36;
+
+  const heading = t => {
+    ensure(14); doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(...ACC);
+    doc.text(t, M, y); y += 1.8; doc.setDrawColor(...ACC); doc.setLineWidth(0.4); doc.line(M, y, PW - M, y); y += 6;
+  };
+
+  // Datos de entrada
+  heading('Datos de entrada');
+  doc.setFontSize(9.5);
+  res.inputs.forEach((r, i) => {
+    ensure(6.4);
+    if (i % 2 === 0) { doc.setFillColor(...ZEB); doc.rect(M, y - 4.3, CW, 6.2, 'F'); }
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...INK);
+    doc.text(sanitize(r[0]), M + 2, y);
+    doc.setFont('helvetica', 'bold'); doc.text(sanitize(r[1]), M + 62, y);
+    y += 6.2;
+  });
+  y += 6;
+
+  // Resumen
+  heading('Cuadro resumen de resultados');
+  const cLab = M + 2, cVal = M + CW - 22, cUni = M + CW - 19;
+  let zi = 0;
+  res.summary.forEach(r => {
+    ensure(7);
+    if (r.group) {
+      doc.setFillColor(...ACC); doc.rect(M, y - 4.4, CW, 6.4, 'F');
+      doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+      doc.text(sanitize(r.group), M + 2, y); y += 6.4; zi = 0; return;
+    }
+    if (r.key) { doc.setFillColor(...KEY); doc.rect(M, y - 4.4, CW, 6.4, 'F'); }
+    else if (zi % 2 === 0) { doc.setFillColor(...ZEB); doc.rect(M, y - 4.4, CW, 6.4, 'F'); }
+    zi++;
+    doc.setFontSize(9.5); doc.setTextColor(...INK);
+    doc.setFont('helvetica', r.key ? 'bold' : 'normal');
+    doc.text(sanitize(r.label), cLab, y);
+    doc.setFont('helvetica', 'bold'); doc.text(r.value, cVal, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.text(r.unit || '', cUni, y);
+    y += 6.4;
+  });
+  y += 4;
+  doc.setDrawColor(...RULE); doc.setLineWidth(0.2); doc.line(M, y, PW - M, y); y += 8;
+
+  // Procedimiento
+  heading('Procedimiento detallado');
+  const MM_PER_PX = 0.2375;
+  res.steps.forEach((s, i) => {
+    ensure(24);
+    doc.setFillColor(...ACC); doc.rect(M, y - 4, 1.4, 5.4, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...INK);
+    const tl = doc.splitTextToSize((i + 1) + '. ' + sanitize(s.title), CW - 5);
+    doc.text(tl, M + 3.5, y); y += tl.length * 4.8 + 1.5;
+    s.lines.forEach(l => {
+      if (typeof l === 'string') {
+        const r = renderTeX(l, { size: 16, color: '#000000', scale: 3 });
+        let w = r.w * MM_PER_PX, hh = r.h * MM_PER_PX;
+        if (w > CW - 4) { const k = (CW - 4) / w; w *= k; hh *= k; }
+        ensure(hh + 2);
+        doc.addImage(r.canvas.toDataURL('image/png'), 'PNG', M + 3.5, y, w, hh);
+        y += hh + 1.6;
+      } else {
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(8.8); doc.setTextColor(90, 105, 112);
+        const lines = doc.splitTextToSize(sanitize(l.note), CW - 4);
+        ensure(lines.length * 4 + 1);
+        doc.text(lines, M + 3.5, y + 1); y += lines.length * 4 + 1.6;
+      }
+    });
+    y += 4;
+  });
+
+  const n = doc.getNumberOfPages();
+  for (let p = 1; p <= n; p++) {
+    doc.setPage(p); doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(120, 135, 140);
+    doc.text('Calculadora geodesica UTM', M, PH - 8);
+    doc.text('Pagina ' + p + ' de ' + n, PW - M, PH - 8, { align: 'right' });
+  }
+  return doc;
+}
+
+function setStatus(msg) { const s = $('#status'); s.textContent = msg; }
+
+async function downloadPDF() {
+  if (!state.res) return;
+  const btn = $('#pdfBtn'); btn.disabled = true; setStatus('Generando PDF…');
+  try {
+    const doc = await buildPDF(state.mod, state.res);
+    const name = 'geodesia_' + state.res.file + '.pdf';
+    let dl = null;
+    try { dl = (window.claude && window.claude.use) ? await window.claude.use('downloads') : null; } catch (e) { dl = null; }
+    if (dl) { await dl.save({ filename: name, data: doc.output('blob') }); setStatus('PDF guardado: ' + name); }
+    else { doc.save(name); setStatus('PDF generado: ' + name); }
+  } catch (err) {
+    if (err && err.code === 'declined') setStatus('Descarga cancelada.');
+    else setStatus('No se pudo generar el PDF: ' + (err.message || err.code || err));
+  } finally { btn.disabled = !state.res; }
+}
+
+/* ============ Navegación ============ */
+function selectModule(id) {
+  state.mod = MODS.find(m => m.id === id); state.res = null;
+  document.querySelectorAll('.nav button').forEach(b => b.setAttribute('aria-current', b.dataset.id === id ? 'page' : 'false'));
+  $('#pdfBtn').disabled = true; setStatus('');
+  renderForm(); calculate();
+  if (location.hash !== '#' + id) history.replaceState(null, '', '#' + id);
+}
+
+function buildNav() {
+  const nav = $('.nav'); const groups = {};
+  MODS.forEach(m => (groups[m.group] = groups[m.group] || []).push(m));
+  Object.keys(groups).forEach(g => {
+    nav.append(h('div', { class: 'ngroup' }, h('span', { class: 'gname' }, g),
+      groups[g].map(m => h('button', { type: 'button', 'data-id': m.id, onclick: () => selectModule(m.id) }, m.name))));
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  buildNav();
+  $('#calcBtn').addEventListener('click', calculate);
+  $('#resetBtn').addEventListener('click', () => { renderForm(); calculate(); });
+  $('#pdfBtn').addEventListener('click', downloadPDF);
+  $('#fields').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); calculate(); } });
+  const start = (location.hash || '').slice(1);
+  selectModule(MODS.some(m => m.id === start) ? start : MODS[0].id);
+  const redraw = () => { if (state.res) renderResult(); };
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(redraw, 50));
+  new MutationObserver(() => setTimeout(redraw, 50)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+});
+
+</script>
+</body>
+</html>
